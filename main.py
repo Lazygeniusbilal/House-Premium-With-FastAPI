@@ -1,42 +1,36 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import pandas as pd
 import joblib
-import json
 
-# FastAPI instance
+# Define the FastAPI app
 app = FastAPI()
 
-class model_input(BaseModel):
-    # Specify the correct data types
+# Load the preprocessor and model at startup
+preprocessor = joblib.load("preprocessor.pkl")
+model = joblib.load("best_lasso_model.pkl")
+
+# Define the request body using Pydantic
+class InputData(BaseModel):
     house_age: int
     construction_type: str
-    marital_status: str  
+    matrial_status: str
     number_of_bedrooms: int
     coverage_type: str
 
-# Load the saved files
-preprocessor = joblib.load("preprocessor.pkl")
-lasso_model = joblib.load("best_lasso_model.pkl")
+# Define a prediction endpoint
+@app.post("/predict")
+def predict(input_data: InputData):
+    # Convert input data to DataFrame
+    data_df = pd.DataFrame([input_data.dict()])
+    
+    # Preprocess the input data
+    transformed_data = preprocessor.transform(data_df)
+    
+    # Make the prediction
+    prediction = model.predict(transformed_data)
+    
+    # Return the prediction as a response
+    return {"prediction": prediction[0]}
 
-# Create API
-@app.get('/')
-def premium_prediction(input_parameters: model_input):
-    input_data = input_parameters.json()
-    input_dictionary = json.loads(input_data)
 
-    # Extract values from the dictionary
-    house_age = input_dictionary["house_age"]
-    construction_type = input_dictionary["construction_type"]
-    marital_status = input_dictionary["marital_status"]
-    number_of_bedrooms = input_dictionary["number_of_bedrooms"]
-    coverage_type = input_dictionary["coverage_type"]
-
-    # Convert to list
-    input_data = [house_age, construction_type, marital_status, number_of_bedrooms, coverage_type]
-
-    # Preprocess the data and predict the output
-    transformed_data = preprocessor.transform([input_data])
-    prediction = lasso_model.predict(transformed_data)
-
-    # Return the prediction
-    return {"Premium": prediction[0]}
